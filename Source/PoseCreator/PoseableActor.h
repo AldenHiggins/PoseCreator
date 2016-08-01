@@ -15,6 +15,18 @@ public:
 	// Sets default values for this actor's properties
 	APoseableActor(const FObjectInitializer& ObjectInitializer);
 
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput);
+
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void endOverlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput);
+
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void gripPressed();
+
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void gripReleased();
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
@@ -33,4 +45,21 @@ public:
 
 	// Bone info
 	TArray<FMeshBoneInfo> meshBoneInfo;
+
+private:
+
+	bool gripBeingPressed;
+
+	bool boneReferenceOverlapping;
+
+	// The currently overlapped bone reference
+	UStaticMeshComponent *overlappedBone;
+
+	// The name of the current overlapped bone
+	FName overlappedBoneName;
+
+	// The selection sphere currently overlapping a bone reference
+	UStaticMeshComponent *selectionSphere;
+
+
 };
