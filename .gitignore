@@ -1,0 +1,10 @@
+*.suo
+Intermediate/
+Saved/
+Content/
+PoseCreator.uproject
+PoseCreator.sln
+PoseCreator.VC.db
+PoseCreator.VC.VC.opendb
+Config/
+Binaries/
