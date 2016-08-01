@@ -49,14 +49,14 @@ void APoseableActor::Tick( float DeltaTime )
 {
 	Super::Tick( DeltaTime );
 
-	//FVector currentBoneLocation = poseableMesh->GetBoneLocationByName(meshBoneInfo[2].Name, EBoneSpaces::WorldSpace);
+	// Update all of the bone reference locations
+	for (int boneIndex = 0; boneIndex < boneReferences.Num(); boneIndex++)
+	{
+		FVector newReferenceLocation = poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
+		boneReferences[boneIndex]->SetWorldLocation(newReferenceLocation);
+	}
 
-	//FVector newBoneLocation = currentBoneLocation + FVector(0.0f, 0.0f, 0.01f);
-
-	//poseableMesh->SetBoneLocationByName(meshBoneInfo[2].Name, newBoneLocation, EBoneSpaces::WorldSpace);
-
-	//boneReferences[2]->SetWorldLocation(newBoneLocation);
-
+	// If the grip button is being held down move the overalapped bone to the location of the controller
 	if (gripBeingPressed)
 	{
 		if (boneReferenceOverlapping)
@@ -75,6 +75,11 @@ void APoseableActor::Tick( float DeltaTime )
 
 void APoseableActor::overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput)
 {
+	if (gripBeingPressed)
+	{
+		return;
+	}
+
 	boneReferenceOverlapping = false;
 	overlappedBone = overlappedBoneInput;
 	selectionSphere = selectionSphereInput;
@@ -94,6 +99,11 @@ void APoseableActor::overlapBoneReference(UStaticMeshComponent *overlappedBoneIn
 
 void APoseableActor::endOverlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput)
 {
+	if (gripBeingPressed)
+	{
+		return;
+	}
+
 	boneReferenceOverlapping = false;
 	overlappedBoneInput->SetCustomDepthStencilValue(252);
 	selectionSphereInput->SetCustomDepthStencilValue(253);
