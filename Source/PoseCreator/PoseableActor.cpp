@@ -28,15 +28,17 @@ void APoseableActor::BeginPlay()
 	}
 
 	// Create reference points for each of the bones
-	TArray<FMeshBoneInfo> meshBoneInfo = poseableMesh->SkeletalMesh->Skeleton->GetReferenceSkeleton().GetRefBoneInfo();
+	meshBoneInfo = poseableMesh->SkeletalMesh->Skeleton->GetReferenceSkeleton().GetRefBoneInfo();
 	for (int boneIndex = 0; boneIndex < meshBoneInfo.Num(); boneIndex++)
 	{
 		UStaticMeshComponent *newBoneReference = ConstructObject<UStaticMeshComponent>(UStaticMeshComponent::StaticClass(), this);
 		newBoneReference->SetStaticMesh(boneMesh);
 		newBoneReference->AttachParent = GetRootComponent();
-		newBoneReference->SetRelativeScale3D(FVector(.05f, .05f, .05f));
+		newBoneReference->SetRelativeScale3D(FVector(.01f, .01f, .01f));
 		newBoneReference->SetWorldLocation(poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace));
 		newBoneReference->RegisterComponentWithWorld(this->GetWorld());
+		newBoneReference->SetRenderCustomDepth(true);
+		newBoneReference->SetCustomDepthStencilValue(252);
 
 		boneReferences.Add(newBoneReference);
 	}
@@ -46,5 +48,13 @@ void APoseableActor::BeginPlay()
 void APoseableActor::Tick( float DeltaTime )
 {
 	Super::Tick( DeltaTime );
+
+	FVector currentBoneLocation = poseableMesh->GetBoneLocationByName(meshBoneInfo[2].Name, EBoneSpaces::WorldSpace);
+
+	FVector newBoneLocation = currentBoneLocation + FVector(0.0f, 0.0f, 0.01f);
+
+	poseableMesh->SetBoneLocationByName(meshBoneInfo[2].Name, newBoneLocation, EBoneSpaces::WorldSpace);
+
+	boneReferences[2]->SetWorldLocation(newBoneLocation);
 }
 

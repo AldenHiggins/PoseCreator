@@ -30,4 +30,7 @@ public:
 
 	// Reference meshes for the bones
 	TArray<UStaticMeshComponent *> boneReferences;
+
+	// Bone info
+	TArray<FMeshBoneInfo> meshBoneInfo;
 };
