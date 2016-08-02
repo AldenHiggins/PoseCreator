@@ -16,10 +16,10 @@ public:
 	APoseableActor(const FObjectInitializer& ObjectInitializer);
 
 	UFUNCTION(BlueprintCallable, Category = "Posing")
-	void overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput);
+	void overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand);
 
 	UFUNCTION(BlueprintCallable, Category = "Posing")
-	void endOverlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput);
+	void endOverlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand);
 
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void gripPressed();
@@ -34,7 +34,6 @@ public:
 	virtual void Tick( float DeltaSeconds ) override;
 
 	// The mannequin visible in game that the user will modify
-	//USkeletalMeshComponent *skeletalMesh;
 	UPoseableMeshComponent *poseableMesh;
 
 	// The mesh to represent the bones
@@ -50,16 +49,22 @@ private:
 
 	bool gripBeingPressed;
 
-	bool boneReferenceOverlapping;
+	bool boneReferenceOverlappingLeft;
+	bool boneReferenceOverlappingRight;
 
-	// The currently overlapped bone reference
-	UStaticMeshComponent *overlappedBone;
+	// The starting difference vector between the left and right hand bones
+	FVector startingLeftToRightVector;
+	FRotator startingBoneRotation;
 
-	// The name of the current overlapped bone
-	FName overlappedBoneName;
+	// The currently overlapped bone references
+	UStaticMeshComponent *overlappedBoneLeftHand;
+	UStaticMeshComponent *overlappedBoneRightHand;
 
-	// The selection sphere currently overlapping a bone reference
-	UStaticMeshComponent *selectionSphere;
+	// The name of the current overlapped bones
+	FName overlappedBoneNameLeftHand;
+	FName overlappedBoneNameRightHand;
 
-
+	// The selection sphere currently overlapping bone references
+	UStaticMeshComponent *selectionSphereLeftHand;
+	UStaticMeshComponent *selectionSphereRightHand;
 };
