@@ -58,42 +58,48 @@ void APoseableActor::Tick( float DeltaTime )
 	}
 
 	// If the grip button is being held down move the overlapped bone to the location of the controller
-	if (gripBeingPressed)
+	if (rightGripBeingPressed)
 	{
-		if (boneReferenceOverlappingRight)
-		{
-			//FVector newLocation = selectionSphereLeftHand->GetComponentLocation();
+		FVector distanceVector = rightHandSelectionSphere->GetComponentLocation() - rightHandInitialGripPosition;
 
-			//// Reposition the bone reference to the location of the selection sphere
-			//overlappedBoneLeftHand->SetWorldLocation(newLocation);
+		rightHandInitialGripPosition = rightHandSelectionSphere->GetComponentLocation();
 
-			//// Reposition the actual bone in the skeleton to the location of the selection sphere
-			//poseableMesh->SetBoneLocationByName(overlappedBoneNameLeftHand, newLocation, EBoneSpaces::WorldSpace);
+		this->SetActorLocation(this->GetActorLocation() + distanceVector);
+	}
 
-			// Get the vector to the next bone
-			FVector vectorToRightHand = selectionSphereRightHand->GetComponentLocation() - 
-				poseableMesh->GetBoneLocationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, EBoneSpaces::WorldSpace);
-			// Calculate the new rotation of the bone
-			vectorToRightHand.Normalize();
-			 
-			float dotProduct = FVector::DotProduct(startingLeftToRightVector, vectorToRightHand);
+	if (rightTriggerBeingPressed && boneReferenceOverlappingRight)
+	{
+		//FVector newLocation = selectionSphereLeftHand->GetComponentLocation();
 
-			float angleDifference = FMath::Acos(dotProduct);
+		//// Reposition the bone reference to the location of the selection sphere
+		//overlappedBoneLeftHand->SetWorldLocation(newLocation);
 
-			FVector rotationAxis = FVector::CrossProduct(startingLeftToRightVector, vectorToRightHand);
+		//// Reposition the actual bone in the skeleton to the location of the selection sphere
+		//poseableMesh->SetBoneLocationByName(overlappedBoneNameLeftHand, newLocation, EBoneSpaces::WorldSpace);
 
-			FRotator newRotation = FRotator(FQuat(rotationAxis, angleDifference));
+		// Get the vector to the next bone
+		FVector vectorToRightHand = selectionSphereRightHand->GetComponentLocation() -
+			poseableMesh->GetBoneLocationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, EBoneSpaces::WorldSpace);
+		// Calculate the new rotation of the bone
+		vectorToRightHand.Normalize();
 
-			FRotator finalRotation = UKismetMathLibrary::ComposeRotators(startingBoneRotation, newRotation);
+		float dotProduct = FVector::DotProduct(startingLeftToRightVector, vectorToRightHand);
 
-			poseableMesh->SetBoneRotationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, finalRotation, EBoneSpaces::WorldSpace);
-		}
+		float angleDifference = FMath::Acos(dotProduct);
+
+		FVector rotationAxis = FVector::CrossProduct(startingLeftToRightVector, vectorToRightHand);
+
+		FRotator newRotation = FRotator(FQuat(rotationAxis, angleDifference));
+
+		FRotator finalRotation = UKismetMathLibrary::ComposeRotators(startingBoneRotation, newRotation);
+
+		poseableMesh->SetBoneRotationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, finalRotation, EBoneSpaces::WorldSpace);
 	}
 }
 
 void APoseableActor::overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand)
 {
-	if (gripBeingPressed)
+	if (rightTriggerBeingPressed)
 	{
 		return;
 	}
@@ -144,7 +150,7 @@ void APoseableActor::overlapBoneReference(UStaticMeshComponent *overlappedBoneIn
 
 void APoseableActor::endOverlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand)
 {
-	if (gripBeingPressed)
+	if (rightTriggerBeingPressed)
 	{
 		return;
 	}
@@ -162,45 +168,97 @@ void APoseableActor::endOverlapBoneReference(UStaticMeshComponent *overlappedBon
 	selectionSphereInput->SetCustomDepthStencilValue(253);
 }
 
-
-void APoseableActor::gripPressed()
+void APoseableActor::gripPressed(UStaticMeshComponent *selectionSphere, bool leftHand)
 {
-	gripBeingPressed = true;
-
-	if (boneReferenceOverlappingRight)
+	if (leftHand)
 	{
-		FName overlappedBoneParentName = meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name;
+		return;
+	}
+	else
+	{
+		rightGripBeingPressed = true;
 
-		startingLeftToRightVector = overlappedBoneRightHand->GetComponentLocation() - 
-			poseableMesh->GetBoneLocationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
-		startingLeftToRightVector.Normalize();
+		rightHandSelectionSphere = selectionSphere;
+		rightHandInitialGripPosition = selectionSphere->GetComponentLocation();
 
-		startingBoneRotation = poseableMesh->GetBoneRotationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
+		if (boneReferenceOverlappingRight)
+		{
+			FName overlappedBoneParentName = meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name;
+
+			startingLeftToRightVector = overlappedBoneRightHand->GetComponentLocation() -
+				poseableMesh->GetBoneLocationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
+			startingLeftToRightVector.Normalize();
+
+			startingBoneRotation = poseableMesh->GetBoneRotationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
+		}
 	}
 }
 
-void APoseableActor::gripReleased()
+void APoseableActor::gripReleased(bool leftHand)
 {
-	gripBeingPressed = false;
-
-	if (selectionSphereRightHand != nullptr)
+	if (leftHand)
 	{
-		selectionSphereRightHand->SetCustomDepthStencilValue(253);
+		return;
 	}
-	
-	if (selectionSphereLeftHand != nullptr)
+	else
 	{
-		selectionSphereLeftHand->SetCustomDepthStencilValue(253);
+		rightGripBeingPressed = false;
 	}
+}
 
-	if (overlappedBoneRightHand != nullptr)
+void APoseableActor::triggerPressed(UStaticMeshComponent *selectionSphere, bool leftHand)
+{
+	if (leftHand)
 	{
-		overlappedBoneRightHand->SetCustomDepthStencilValue(252);
+		return;
 	}
-
-	if (overlappedBoneLeftHand != nullptr)
+	else
 	{
-		overlappedBoneLeftHand->SetCustomDepthStencilValue(252);
+		rightTriggerBeingPressed = true;
+		rightHandSelectionSphere = selectionSphere;
+
+		if (boneReferenceOverlappingRight)
+		{
+			FName overlappedBoneParentName = meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name;
+
+			startingLeftToRightVector = overlappedBoneRightHand->GetComponentLocation() -
+				poseableMesh->GetBoneLocationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
+			startingLeftToRightVector.Normalize();
+
+			startingBoneRotation = poseableMesh->GetBoneRotationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
+		}
+	}
+}
+
+void APoseableActor::triggerReleased(bool leftHand)
+{
+	if (leftHand)
+	{
+		return;
+	}
+	else
+	{
+		rightTriggerBeingPressed = false;
+
+		if (selectionSphereRightHand != nullptr)
+		{
+			selectionSphereRightHand->SetCustomDepthStencilValue(253);
+		}
+
+		if (selectionSphereLeftHand != nullptr)
+		{
+			selectionSphereLeftHand->SetCustomDepthStencilValue(253);
+		}
+
+		if (overlappedBoneRightHand != nullptr)
+		{
+			overlappedBoneRightHand->SetCustomDepthStencilValue(252);
+		}
+
+		if (overlappedBoneLeftHand != nullptr)
+		{
+			overlappedBoneLeftHand->SetCustomDepthStencilValue(252);
+		}
 	}
 }
 

@@ -22,10 +22,16 @@ public:
 	void endOverlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand);
 
 	UFUNCTION(BlueprintCallable, Category = "Posing")
-	void gripPressed();
+	void gripPressed(UStaticMeshComponent *selectionSphere, bool leftHand);
 
 	UFUNCTION(BlueprintCallable, Category = "Posing")
-	void gripReleased();
+	void gripReleased(bool leftHand);
+
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void triggerPressed(UStaticMeshComponent *selectionSphere, bool leftHand);
+
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void triggerReleased(bool leftHand);
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -47,7 +53,18 @@ public:
 
 private:
 
-	bool gripBeingPressed;
+	bool rightTriggerBeingPressed;
+	bool leftTriggerBeingPressed;
+
+	bool rightGripBeingPressed;
+	bool leftGripBeingPressed;
+
+	// Keep track of the initial position of the controller when the grip button is pressed
+	FVector rightHandInitialGripPosition;
+	FVector leftHandInitialGripPosition;
+
+	UStaticMeshComponent *rightHandSelectionSphere;
+	UStaticMeshComponent *LeftHandSelectionSphere;
 
 	bool boneReferenceOverlappingLeft;
 	bool boneReferenceOverlappingRight;
