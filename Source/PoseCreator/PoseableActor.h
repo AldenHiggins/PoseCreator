@@ -64,6 +64,9 @@ private:
 	FName overlappedBoneNameLeftHand;
 	FName overlappedBoneNameRightHand;
 
+	FMeshBoneInfo overlappedBoneRighttHandInfo;
+	FName overlappedBoneParentName;
+
 	// The selection sphere currently overlapping bone references
 	UStaticMeshComponent *selectionSphereLeftHand;
 	UStaticMeshComponent *selectionSphereRightHand;

@@ -60,7 +60,7 @@ void APoseableActor::Tick( float DeltaTime )
 	// If the grip button is being held down move the overlapped bone to the location of the controller
 	if (gripBeingPressed)
 	{
-		if (boneReferenceOverlappingLeft && boneReferenceOverlappingRight)
+		if (boneReferenceOverlappingRight)
 		{
 			//FVector newLocation = selectionSphereLeftHand->GetComponentLocation();
 
@@ -71,7 +71,8 @@ void APoseableActor::Tick( float DeltaTime )
 			//poseableMesh->SetBoneLocationByName(overlappedBoneNameLeftHand, newLocation, EBoneSpaces::WorldSpace);
 
 			// Get the vector to the next bone
-			FVector vectorToRightHand = selectionSphereRightHand->GetComponentLocation() - overlappedBoneLeftHand->GetComponentLocation();
+			FVector vectorToRightHand = selectionSphereRightHand->GetComponentLocation() - 
+				poseableMesh->GetBoneLocationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, EBoneSpaces::WorldSpace);
 			// Calculate the new rotation of the bone
 			vectorToRightHand.Normalize();
 			 
@@ -85,7 +86,7 @@ void APoseableActor::Tick( float DeltaTime )
 
 			FRotator finalRotation = UKismetMathLibrary::ComposeRotators(startingBoneRotation, newRotation);
 
-			poseableMesh->SetBoneRotationByName(overlappedBoneNameLeftHand, finalRotation, EBoneSpaces::WorldSpace);
+			poseableMesh->SetBoneRotationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, finalRotation, EBoneSpaces::WorldSpace);
 		}
 	}
 }
@@ -133,6 +134,8 @@ void APoseableActor::overlapBoneReference(UStaticMeshComponent *overlappedBoneIn
 			if (boneReferences[boneIndex] == overlappedBoneRightHand)
 			{
 				overlappedBoneNameRightHand = meshBoneInfo[boneIndex].Name;
+				overlappedBoneRighttHandInfo = meshBoneInfo[boneIndex];
+				overlappedBoneParentName = meshBoneInfo[meshBoneInfo[boneIndex].ParentIndex].Name;
 				boneReferenceOverlappingRight = true;
 			}
 		}
@@ -164,12 +167,15 @@ void APoseableActor::gripPressed()
 {
 	gripBeingPressed = true;
 
-	if (boneReferenceOverlappingRight && boneReferenceOverlappingLeft)
+	if (boneReferenceOverlappingRight)
 	{
-		startingLeftToRightVector = overlappedBoneRightHand->GetComponentLocation() - overlappedBoneLeftHand->GetComponentLocation();
+		FName overlappedBoneParentName = meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name;
+
+		startingLeftToRightVector = overlappedBoneRightHand->GetComponentLocation() - 
+			poseableMesh->GetBoneLocationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
 		startingLeftToRightVector.Normalize();
 
-		startingBoneRotation = poseableMesh->GetBoneRotationByName(overlappedBoneNameLeftHand, EBoneSpaces::WorldSpace);
+		startingBoneRotation = poseableMesh->GetBoneRotationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
 	}
 }
 
