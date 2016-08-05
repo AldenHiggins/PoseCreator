@@ -33,6 +33,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void triggerReleased(bool leftHand);
 
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void rotateBoneAroundAxis(float rotationRadians);
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
@@ -61,7 +64,8 @@ private:
 
 	// Keep track of the initial position of the controller when the grip button is pressed
 	FVector rightHandInitialGripPosition;
-	FVector leftHandInitialGripPosition;
+	FVector initialGripVectorBetweenControllers;
+	FRotator initialActorRotation;
 
 	UStaticMeshComponent *rightHandSelectionSphere;
 	UStaticMeshComponent *LeftHandSelectionSphere;
