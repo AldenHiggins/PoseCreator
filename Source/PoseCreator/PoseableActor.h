@@ -56,6 +56,8 @@ public:
 
 private:
 
+	float trackpadRotation;
+
 	bool rightTriggerBeingPressed;
 	bool leftTriggerBeingPressed;
 

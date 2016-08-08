@@ -61,7 +61,6 @@ void APoseableActor::Tick( float DeltaTime )
 		boneReferences[boneIndex]->SetWorldLocation(newReferenceLocation);
 	}
 
-	
 	if (rightGripBeingPressed)
 	{
 		if (leftGripBeingPressed)
@@ -79,7 +78,6 @@ void APoseableActor::Tick( float DeltaTime )
 
 			FRotator finalRotation = UKismetMathLibrary::ComposeRotators(initialActorRotation, newRotator);
 
-			//this->SetActorRotation(finalRotation);
 			poseableMesh->SetBoneRotationByName("root", finalRotation, EBoneSpaces::WorldSpace);
 		}
 		else
@@ -95,14 +93,6 @@ void APoseableActor::Tick( float DeltaTime )
 
 	if (rightTriggerBeingPressed && boneReferenceOverlappingRight)
 	{
-		//FVector newLocation = selectionSphereLeftHand->GetComponentLocation();
-
-		//// Reposition the bone reference to the location of the selection sphere
-		//overlappedBoneLeftHand->SetWorldLocation(newLocation);
-
-		//// Reposition the actual bone in the skeleton to the location of the selection sphere
-		//poseableMesh->SetBoneLocationByName(overlappedBoneNameLeftHand, newLocation, EBoneSpaces::WorldSpace);
-
 		// Get the vector to the next bone
 		FVector vectorToRightHand = selectionSphereRightHand->GetComponentLocation() -
 			poseableMesh->GetBoneLocationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, EBoneSpaces::WorldSpace);
@@ -118,6 +108,10 @@ void APoseableActor::Tick( float DeltaTime )
 		FRotator newRotation = FRotator(FQuat(rotationAxis, angleDifference));
 
 		FRotator finalRotation = UKismetMathLibrary::ComposeRotators(startingBoneRotation, newRotation);
+
+		FRotator finalTrackpadRotation = FRotator(FQuat(finalRotation.Vector(), trackpadRotation));
+
+		finalRotation = UKismetMathLibrary::ComposeRotators(finalRotation, finalTrackpadRotation);
 
 		poseableMesh->SetBoneRotationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, finalRotation, EBoneSpaces::WorldSpace);
 	}
@@ -208,17 +202,6 @@ void APoseableActor::gripPressed(UStaticMeshComponent *selectionSphere, bool lef
 
 		rightHandSelectionSphere = selectionSphere;
 		rightHandInitialGripPosition = selectionSphere->GetComponentLocation();
-
-		//if (boneReferenceOverlappingRight)
-		//{
-		//	FName overlappedBoneParentName = meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name;
-
-		//	startingLeftToRightVector = overlappedBoneRightHand->GetComponentLocation() -
-		//		poseableMesh->GetBoneLocationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
-		//	startingLeftToRightVector.Normalize();
-
-		//	startingBoneRotation = poseableMesh->GetBoneRotationByName(overlappedBoneParentName, EBoneSpaces::WorldSpace);
-		//}
 	}
 
 	if (leftGripBeingPressed && rightGripBeingPressed)
@@ -257,6 +240,7 @@ void APoseableActor::triggerPressed(UStaticMeshComponent *selectionSphere, bool 
 	{
 		rightTriggerBeingPressed = true;
 		rightHandSelectionSphere = selectionSphere;
+		trackpadRotation = 0.0f;
 
 		if (boneReferenceOverlappingRight)
 		{
@@ -280,6 +264,8 @@ void APoseableActor::triggerReleased(bool leftHand)
 	else
 	{
 		rightTriggerBeingPressed = false;
+
+		trackpadRotation = 0.0f;
 
 		if (selectionSphereRightHand != nullptr)
 		{
@@ -307,16 +293,7 @@ void APoseableActor::rotateBoneAroundAxis(float rotationRadians)
 {
 	if (rightTriggerBeingPressed && boneReferenceOverlappingRight)
 	{
-		FRotator boneRotation = poseableMesh->GetBoneRotationByName(overlappedBoneNameRightHand, EBoneSpaces::WorldSpace);
-		FVector boneRotationAxis = boneRotation.Vector();
-		//FVector vectorToRightHand = selectionSphereRightHand->GetComponentLocation() -
-		//	poseableMesh->GetBoneLocationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, EBoneSpaces::WorldSpace);
-
-		//vectorToRightHand.Normalize();
-		FRotator newRotation = FRotator(FQuat(boneRotationAxis, rotationRadians));
-		FRotator finalRotation = UKismetMathLibrary::ComposeRotators(startingBoneRotation, newRotation);
-		startingBoneRotation = finalRotation;
-		//poseableMesh->SetBoneRotationByName(overlappedBoneNameRightHand, finalRotation, EBoneSpaces::WorldSpace);
+		trackpadRotation += rotationRadians;
 	}
 }
 
