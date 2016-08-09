@@ -15,12 +15,14 @@ public:
 	// Sets default values for this actor's properties
 	APoseableActor(const FObjectInitializer& ObjectInitializer);
 
+	// Overlapping bone callbacks
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand);
 
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void endOverlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand);
 
+	// Input button callbacks
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void gripPressed(UStaticMeshComponent *selectionSphere, bool leftHand);
 
@@ -42,6 +44,8 @@ public:
 	// Called every frame
 	virtual void Tick( float DeltaSeconds ) override;
 
+private:
+	
 	// The mannequin visible in game that the user will modify
 	UPoseableMeshComponent *poseableMesh;
 
@@ -54,13 +58,12 @@ public:
 	// Bone info
 	TArray<FMeshBoneInfo> meshBoneInfo;
 
-private:
-
+	// Rotation value along the bone's axis, used to rotate the bones in the only axis that you can't by just dragging them around
 	float trackpadRotation;
 
+	// Input booleans
 	bool rightTriggerBeingPressed;
 	bool leftTriggerBeingPressed;
-
 	bool rightGripBeingPressed;
 	bool leftGripBeingPressed;
 
@@ -69,9 +72,11 @@ private:
 	FVector initialGripVectorBetweenControllers;
 	FRotator initialActorRotation;
 
+	// References to the right/left hand controller's location
 	UStaticMeshComponent *rightHandSelectionSphere;
 	UStaticMeshComponent *LeftHandSelectionSphere;
 
+	// Whether or not the user is overlapping a bone with one of the controllers
 	bool boneReferenceOverlappingLeft;
 	bool boneReferenceOverlappingRight;
 

@@ -36,9 +36,9 @@ void APoseableActor::BeginPlay()
 	meshBoneInfo = poseableMesh->SkeletalMesh->Skeleton->GetReferenceSkeleton().GetRefBoneInfo();
 	for (int boneIndex = 0; boneIndex < meshBoneInfo.Num(); boneIndex++)
 	{
-		UStaticMeshComponent *newBoneReference = ConstructObject<UStaticMeshComponent>(UStaticMeshComponent::StaticClass(), this);
+		UStaticMeshComponent *newBoneReference = NewObject<UStaticMeshComponent>(this);
 		newBoneReference->SetStaticMesh(boneMesh);
-		newBoneReference->AttachParent = GetRootComponent();
+		newBoneReference->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform);
 		newBoneReference->SetRelativeScale3D(FVector(.01f, .01f, .01f));
 		newBoneReference->SetWorldLocation(poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace));
 		newBoneReference->RegisterComponentWithWorld(this->GetWorld());
@@ -61,6 +61,7 @@ void APoseableActor::Tick( float DeltaTime )
 		boneReferences[boneIndex]->SetWorldLocation(newReferenceLocation);
 	}
 
+	// Moving and rotating the entire skeletal mesh
 	if (rightGripBeingPressed)
 	{
 		if (leftGripBeingPressed)
@@ -79,6 +80,7 @@ void APoseableActor::Tick( float DeltaTime )
 			FRotator finalRotation = UKismetMathLibrary::ComposeRotators(initialActorRotation, newRotator);
 
 			poseableMesh->SetBoneRotationByName("root", finalRotation, EBoneSpaces::WorldSpace);
+
 		}
 		else
 		{
@@ -91,6 +93,7 @@ void APoseableActor::Tick( float DeltaTime )
 		}
 	}
 
+	// Rotating the selected bone of the skeleton
 	if (rightTriggerBeingPressed && boneReferenceOverlappingRight)
 	{
 		// Get the vector to the next bone
@@ -204,12 +207,12 @@ void APoseableActor::gripPressed(UStaticMeshComponent *selectionSphere, bool lef
 		rightHandInitialGripPosition = selectionSphere->GetComponentLocation();
 	}
 
+	// If both grips are being pressed keep track of the vector between them to later rotate the poseable mesh
 	if (leftGripBeingPressed && rightGripBeingPressed)
 	{
 		initialGripVectorBetweenControllers = rightHandSelectionSphere->GetComponentLocation() - LeftHandSelectionSphere->GetComponentLocation();
 		initialGripVectorBetweenControllers.Z = 0;
 		initialGripVectorBetweenControllers.Normalize();
-		//initialActorRotation = this->GetActorRotation();
 		initialActorRotation = poseableMesh->GetBoneRotationByName("root", EBoneSpaces::WorldSpace);
 	}
 }
