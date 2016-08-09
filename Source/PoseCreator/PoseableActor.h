@@ -4,6 +4,7 @@
 
 #include "GameFramework/Actor.h"
 #include "Components/PoseableMeshComponent.h"
+#include "DataStructures.h"
 #include "PoseableActor.generated.h"
 
 UCLASS()
@@ -14,6 +15,10 @@ class POSECREATOR_API APoseableActor : public AActor
 public:	
 	// Sets default values for this actor's properties
 	APoseableActor(const FObjectInitializer& ObjectInitializer);
+
+	// Reset bone position/rotations to their defaults
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void resetSkeleton();
 
 	// Overlapping bone callbacks
 	UFUNCTION(BlueprintCallable, Category = "Posing")
@@ -45,6 +50,15 @@ public:
 	virtual void Tick( float DeltaSeconds ) override;
 
 private:
+
+	// Save out an array of bone info for the current state of the skeleton
+	TArray<FBoneInfo> saveCurrentBoneState();
+
+	// Change the current bone state to that of the inputted array
+	void changeBoneState(TArray<FBoneInfo> newPose);
+
+	// The initial pose of the mannequin
+	TArray<FBoneInfo> initialPose;
 	
 	// The mannequin visible in game that the user will modify
 	UPoseableMeshComponent *poseableMesh;

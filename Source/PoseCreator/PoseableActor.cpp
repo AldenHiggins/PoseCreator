@@ -47,6 +47,9 @@ void APoseableActor::BeginPlay()
 
 		boneReferences.Add(newBoneReference);
 	}
+
+	// Save out the current pose to later reset
+	initialPose = saveCurrentBoneState();
 }
 
 // Called every frame
@@ -117,6 +120,37 @@ void APoseableActor::Tick( float DeltaTime )
 		finalRotation = UKismetMathLibrary::ComposeRotators(finalRotation, finalTrackpadRotation);
 
 		poseableMesh->SetBoneRotationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, finalRotation, EBoneSpaces::WorldSpace);
+	}
+}
+
+void APoseableActor::resetSkeleton()
+{
+	changeBoneState(initialPose);
+}
+
+TArray<FBoneInfo> APoseableActor::saveCurrentBoneState()
+{
+	TArray<FBoneInfo> savedBoneInfo;
+
+	for (int boneIndex = 0; boneIndex < meshBoneInfo.Num(); boneIndex++)
+	{
+		FBoneInfo newBoneInfo;
+		newBoneInfo.name = meshBoneInfo[boneIndex].Name;
+		newBoneInfo.position = poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
+		newBoneInfo.rotation = poseableMesh->GetBoneRotationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
+
+		savedBoneInfo.Add(newBoneInfo);
+	}
+
+	return savedBoneInfo;
+}
+
+void APoseableActor::changeBoneState(TArray<FBoneInfo> newPose)
+{
+	for (int boneIndex = 0; boneIndex < newPose.Num(); boneIndex++)
+	{
+		poseableMesh->SetBoneLocationByName(newPose[boneIndex].name, newPose[boneIndex].position, EBoneSpaces::WorldSpace);
+		poseableMesh->SetBoneRotationByName(newPose[boneIndex].name, newPose[boneIndex].rotation, EBoneSpaces::WorldSpace);
 	}
 }
 
