@@ -20,6 +20,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void resetSkeleton();
 
+	// Save out the current pose to an animation sequence
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void saveCurrentPose();
+
 	// Overlapping bone callbacks
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand);

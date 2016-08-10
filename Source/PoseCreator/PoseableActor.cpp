@@ -3,6 +3,7 @@
 #include "PoseCreator.h"
 #include "PoseableActor.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Animation/AnimSequence.h"
 
 #define BONE_REFERENCE_DEPTH 253
 #define SELECTION_DEPTH 252
@@ -125,7 +126,22 @@ void APoseableActor::Tick( float DeltaTime )
 
 void APoseableActor::resetSkeleton()
 {
+	saveCurrentPose();
 	changeBoneState(initialPose);
+}
+
+void APoseableActor::saveCurrentPose()
+{
+	UAnimSequence *newAnimationSequence = NewObject<UAnimSequence>(this);
+
+	newAnimationSequence->SequenceLength = 0.f;
+	newAnimationSequence->NumFrames = 0;
+
+	newAnimationSequence->SetSkeleton(poseableMesh->SkeletalMesh->Skeleton);
+
+	newAnimationSequence->CreateAnimation(poseableMesh->SkeletalMesh);
+
+	UE_LOG(LogTemp, Warning, TEXT("Animation created...but to waht end?"));
 }
 
 TArray<FBoneInfo> APoseableActor::saveCurrentBoneState()
