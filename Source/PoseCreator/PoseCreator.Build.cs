@@ -7,5 +7,19 @@ public class PoseCreator : ModuleRules
 	public PoseCreator(TargetInfo Target)
 	{
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
-	}
+
+        //PrivateDependencyModuleNames.AddRange(new string[] { "AssetTools" });
+
+        PrivateIncludePathModuleNames.AddRange(
+            new string[] {
+                "AssetTools"
+            }
+        );
+
+        DynamicallyLoadedModuleNames.AddRange(
+            new string[] {
+                "AssetTools"
+            }
+        );
+    }
 }

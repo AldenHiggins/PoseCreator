@@ -3,7 +3,21 @@
 #include "PoseCreator.h"
 #include "PoseableActor.h"
 #include "Kismet/KismetMathLibrary.h"
+
+
 #include "Animation/AnimSequence.h"
+
+
+#include "AssetRegistryModule.h"
+
+//#include "Factories/AnimSequenceFactory.h"
+
+//#include "AnimationEditorUtils.h"
+#include "../AssetTools/Public/AssetToolsModule.h"
+#include "ModuleManager.h"
+//#include "../AssetTools/Private/AssetTools.h"
+
+
 
 #define BONE_REFERENCE_DEPTH 253
 #define SELECTION_DEPTH 252
@@ -127,21 +141,89 @@ void APoseableActor::Tick( float DeltaTime )
 void APoseableActor::resetSkeleton()
 {
 	saveCurrentPose();
-	changeBoneState(initialPose);
+	//changeBoneState(initialPose);
 }
 
 void APoseableActor::saveCurrentPose()
 {
-	UAnimSequence *newAnimationSequence = NewObject<UAnimSequence>(this);
+	FString Name;
+	FString PackageName;
+	FAssetToolsModule& AssetToolsModule = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools");
+	AssetToolsModule.Get().CreateUniqueAssetName(poseableMesh->SkeletalMesh->Skeleton->GetOutermost()->GetName(), TEXT("_GeneratedAnimation"), PackageName, Name);
+	UAnimationAsset* NewAsset = Cast<UAnimationAsset>(AssetToolsModule.Get().CreateAsset(Name, FPackageName::GetLongPackagePath(PackageName), UAnimSequence::StaticClass(), NULL));
 
-	newAnimationSequence->SequenceLength = 0.f;
-	newAnimationSequence->NumFrames = 0;
+	if (NewAsset)
+	{
+		NewAsset->SetSkeleton(poseableMesh->SkeletalMesh->Skeleton);
+		NewAsset->MarkPackageDirty();
+	}
 
-	newAnimationSequence->SetSkeleton(poseableMesh->SkeletalMesh->Skeleton);
+	UAnimSequence* NewAnimSequence = Cast<UAnimSequence>(NewAsset);
 
-	newAnimationSequence->CreateAnimation(poseableMesh->SkeletalMesh);
+	if (NewAnimSequence)
+	{
+		//bool bResult = NewAnimSequence->CreateAnimation(poseableMesh->SkeletalMesh);
+		const FReferenceSkeleton& RefSkeleton = poseableMesh->SkeletalMesh->RefSkeleton;
+		int32 NumBones = poseableMesh->SkeletalMesh->RefSkeleton.GetNum();
+		NewAnimSequence->NumFrames = 1;
 
-	UE_LOG(LogTemp, Warning, TEXT("Animation created...but to waht end?"));
+		NewAnimSequence->RawAnimationData.AddZeroed(NumBones);
+		NewAnimSequence->AnimationTrackNames.AddUninitialized(NumBones);
+
+		const TArray<FTransform>& LocalAtoms = poseableMesh->LocalAtoms;
+
+		check(LocalAtoms.Num() == NumBones);
+
+		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+		{
+			NewAnimSequence->AnimationTrackNames[BoneIndex] = RefSkeleton.GetBoneName(BoneIndex);
+
+			FRawAnimSequenceTrack& RawTrack = NewAnimSequence->RawAnimationData[BoneIndex];
+
+			RawTrack.PosKeys.Add(LocalAtoms[BoneIndex].GetTranslation());
+			RawTrack.RotKeys.Add(LocalAtoms[BoneIndex].GetRotation());
+			RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
+		}
+
+		// refresh TrackToskeletonMapIndex
+		//NewAnimSequence->RefreshTrackMapFromAnimTrackNames();
+
+		NewAnimSequence->TrackToSkeletonMapTable.Empty();
+
+		const USkeleton * MySkeleton = NewAnimSequence->GetSkeleton();
+		NewAnimSequence->TrackToSkeletonMapTable.AddUninitialized(NumBones);
+
+		bool bNeedsFixing = false;
+		const int32 NumTracks = NewAnimSequence->AnimationTrackNames.Num();
+		for (int32 I = NumTracks - 1; I >= 0; --I)
+		{
+			int32 BoneTreeIndex = RefSkeleton.FindBoneIndex(NewAnimSequence->AnimationTrackNames[I]);
+			if (BoneTreeIndex == INDEX_NONE)
+			{
+				////////NewAnimSequence->RemoveTrack(I);
+
+				if (NewAnimSequence->RawAnimationData.IsValidIndex(I))
+				{
+					NewAnimSequence->RawAnimationData.RemoveAt(I);
+					NewAnimSequence->AnimationTrackNames.RemoveAt(I);
+					NewAnimSequence->TrackToSkeletonMapTable.RemoveAt(I);
+
+					check(NewAnimSequence->RawAnimationData.Num() == NewAnimSequence->AnimationTrackNames.Num()
+						&& NewAnimSequence->AnimationTrackNames.Num() == NewAnimSequence->TrackToSkeletonMapTable.Num());
+				}
+
+			}
+			else
+			{
+				NewAnimSequence->TrackToSkeletonMapTable[I].BoneTreeIndex = BoneTreeIndex;
+			}
+		}
+
+		// should recreate track map
+		NewAnimSequence->PostProcessSequence();
+
+		FAssetRegistryModule::AssetCreated(NewAsset);
+	}
 }
 
 TArray<FBoneInfo> APoseableActor::saveCurrentBoneState()
