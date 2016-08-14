@@ -146,84 +146,93 @@ void APoseableActor::resetSkeleton()
 
 void APoseableActor::saveCurrentPose()
 {
+	// Generate an animation asset
 	FString Name;
 	FString PackageName;
 	FAssetToolsModule& AssetToolsModule = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools");
 	AssetToolsModule.Get().CreateUniqueAssetName(poseableMesh->SkeletalMesh->Skeleton->GetOutermost()->GetName(), TEXT("_GeneratedAnimation"), PackageName, Name);
-	UAnimationAsset* NewAsset = Cast<UAnimationAsset>(AssetToolsModule.Get().CreateAsset(Name, FPackageName::GetLongPackagePath(PackageName), UAnimSequence::StaticClass(), NULL));
+	UAnimationAsset* NewAsset = Cast<UAnimationAsset>(AssetToolsModule.Get().CreateAsset(Name, FPackageName::GetLongPackagePath(PackageName),
+		UAnimSequence::StaticClass(), NULL));
 
-	if (NewAsset)
+	if (!NewAsset)
 	{
-		NewAsset->SetSkeleton(poseableMesh->SkeletalMesh->Skeleton);
-		NewAsset->MarkPackageDirty();
+		UE_LOG(LogTemp, Warning, TEXT("Animation could not be created!!"));
+		return;
 	}
+
+	// Assign a skeletal mesh to the animation
+	NewAsset->SetSkeleton(poseableMesh->SkeletalMesh->Skeleton);
+	NewAsset->MarkPackageDirty();
 
 	UAnimSequence* NewAnimSequence = Cast<UAnimSequence>(NewAsset);
 
-	if (NewAnimSequence)
+	if (!NewAnimSequence)
 	{
-		//bool bResult = NewAnimSequence->CreateAnimation(poseableMesh->SkeletalMesh);
-		const FReferenceSkeleton& RefSkeleton = poseableMesh->SkeletalMesh->RefSkeleton;
-		int32 NumBones = poseableMesh->SkeletalMesh->RefSkeleton.GetNum();
-		NewAnimSequence->NumFrames = 1;
-
-		NewAnimSequence->RawAnimationData.AddZeroed(NumBones);
-		NewAnimSequence->AnimationTrackNames.AddUninitialized(NumBones);
-
-		const TArray<FTransform>& LocalAtoms = poseableMesh->LocalAtoms;
-
-		check(LocalAtoms.Num() == NumBones);
-
-		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-		{
-			NewAnimSequence->AnimationTrackNames[BoneIndex] = RefSkeleton.GetBoneName(BoneIndex);
-
-			FRawAnimSequenceTrack& RawTrack = NewAnimSequence->RawAnimationData[BoneIndex];
-
-			RawTrack.PosKeys.Add(LocalAtoms[BoneIndex].GetTranslation());
-			RawTrack.RotKeys.Add(LocalAtoms[BoneIndex].GetRotation());
-			RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
-		}
-
-		// refresh TrackToskeletonMapIndex
-		//NewAnimSequence->RefreshTrackMapFromAnimTrackNames();
-
-		NewAnimSequence->TrackToSkeletonMapTable.Empty();
-
-		const USkeleton * MySkeleton = NewAnimSequence->GetSkeleton();
-		NewAnimSequence->TrackToSkeletonMapTable.AddUninitialized(NumBones);
-
-		bool bNeedsFixing = false;
-		const int32 NumTracks = NewAnimSequence->AnimationTrackNames.Num();
-		for (int32 I = NumTracks - 1; I >= 0; --I)
-		{
-			int32 BoneTreeIndex = RefSkeleton.FindBoneIndex(NewAnimSequence->AnimationTrackNames[I]);
-			if (BoneTreeIndex == INDEX_NONE)
-			{
-				////////NewAnimSequence->RemoveTrack(I);
-
-				if (NewAnimSequence->RawAnimationData.IsValidIndex(I))
-				{
-					NewAnimSequence->RawAnimationData.RemoveAt(I);
-					NewAnimSequence->AnimationTrackNames.RemoveAt(I);
-					NewAnimSequence->TrackToSkeletonMapTable.RemoveAt(I);
-
-					check(NewAnimSequence->RawAnimationData.Num() == NewAnimSequence->AnimationTrackNames.Num()
-						&& NewAnimSequence->AnimationTrackNames.Num() == NewAnimSequence->TrackToSkeletonMapTable.Num());
-				}
-
-			}
-			else
-			{
-				NewAnimSequence->TrackToSkeletonMapTable[I].BoneTreeIndex = BoneTreeIndex;
-			}
-		}
-
-		// should recreate track map
-		NewAnimSequence->PostProcessSequence();
-
-		FAssetRegistryModule::AssetCreated(NewAsset);
+		UE_LOG(LogTemp, Warning, TEXT("Animation could not be converted to an anim sequence!!"));
+		return;
 	}
+
+	// Get some data we'll need to generate the animation sequence
+	const FReferenceSkeleton& RefSkeleton = poseableMesh->SkeletalMesh->RefSkeleton;
+	int32 NumBones = poseableMesh->SkeletalMesh->RefSkeleton.GetNum();
+	const TArray<FTransform>& LocalAtoms = poseableMesh->LocalAtoms;
+
+	// Initialize some data for the animation sequence
+	NewAnimSequence->NumFrames = 1;
+	NewAnimSequence->RawAnimationData.AddZeroed(NumBones);
+	NewAnimSequence->AnimationTrackNames.AddUninitialized(NumBones);
+	
+	// Sanity check
+	check(LocalAtoms.Num() == NumBones);
+
+	// Write out the raw animation data
+	for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+	{
+		NewAnimSequence->AnimationTrackNames[BoneIndex] = RefSkeleton.GetBoneName(BoneIndex);
+
+		FRawAnimSequenceTrack& RawTrack = NewAnimSequence->RawAnimationData[BoneIndex];
+
+		RawTrack.PosKeys.Add(LocalAtoms[BoneIndex].GetTranslation());
+		RawTrack.RotKeys.Add(LocalAtoms[BoneIndex].GetRotation());
+		RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
+	}
+
+	// Empty this out, not sure if it's needed or not
+	NewAnimSequence->TrackToSkeletonMapTable.Empty();
+	NewAnimSequence->TrackToSkeletonMapTable.AddUninitialized(NumBones);
+
+	// Get rid of all of the animation track data, not sure if this is required
+	const int32 NumTracks = NewAnimSequence->AnimationTrackNames.Num();
+	for (int32 I = NumTracks - 1; I >= 0; --I)
+	{
+		int32 BoneTreeIndex = RefSkeleton.FindBoneIndex(NewAnimSequence->AnimationTrackNames[I]);
+		if (BoneTreeIndex == INDEX_NONE)
+		{
+			if (NewAnimSequence->RawAnimationData.IsValidIndex(I))
+			{
+				NewAnimSequence->RawAnimationData.RemoveAt(I);
+				NewAnimSequence->AnimationTrackNames.RemoveAt(I);
+				NewAnimSequence->TrackToSkeletonMapTable.RemoveAt(I);
+
+				check(NewAnimSequence->RawAnimationData.Num() == NewAnimSequence->AnimationTrackNames.Num()
+					&& NewAnimSequence->AnimationTrackNames.Num() == NewAnimSequence->TrackToSkeletonMapTable.Num());
+			}
+		}
+		else
+		{
+			NewAnimSequence->TrackToSkeletonMapTable[I].BoneTreeIndex = BoneTreeIndex;
+		}
+	}
+
+	// should recreate track map
+	NewAnimSequence->PostProcessSequence();
+
+	// Temporary includes to prevent the compiler from getting rid of the reference animation sequence
+	referenceAnimationSequence->PostProcessSequence();
+	referenceAnimationSequence->MarkPackageDirty();
+
+	// Flag UE4 that the animation has been created so that it will be recognized/able to be saved
+	FAssetRegistryModule::AssetCreated(NewAsset);
 }
 
 TArray<FBoneInfo> APoseableActor::saveCurrentBoneState()

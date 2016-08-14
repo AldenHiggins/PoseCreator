@@ -47,6 +47,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void rotateBoneAroundAxis(float rotationRadians);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posing")
+	UAnimSequence *referenceAnimationSequence;
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
