@@ -67,8 +67,8 @@ private:
 	// The initial pose of the mannequin
 	TArray<FBoneInfo> initialPose;
 
-	// The initial pose of the mannequin in local space (used to generate an anim sequence)
-	TArray<FBoneInfo> initialPoseLocalSpace;
+	// The array of saved poses that will be used to generate an animation
+	TArray<TArray<FBoneInfo>> animationPoses;
 	
 	// The mannequin visible in game that the user will modify
 	UPoseableMeshComponent *poseableMesh;

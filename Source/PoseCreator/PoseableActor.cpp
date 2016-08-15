@@ -65,7 +65,6 @@ void APoseableActor::BeginPlay()
 
 	// Save out the current pose to later reset
 	initialPose = saveCurrentBoneState(true);
-	initialPoseLocalSpace = saveCurrentBoneState(false);
 }
 
 // Called every frame
@@ -147,6 +146,12 @@ void APoseableActor::resetSkeleton()
 
 void APoseableActor::saveCurrentPose()
 {
+	if (animationPoses.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No animation poses recorded yet, can't save out an animation!!!"));
+		return;
+	}
+
 	// Generate an animation asset
 	FString Name;
 	FString PackageName;
@@ -179,8 +184,8 @@ void APoseableActor::saveCurrentPose()
 	const TArray<FTransform>& LocalAtoms = poseableMesh->LocalAtoms;
 
 	// Initialize some data for the animation sequence
-	NewAnimSequence->NumFrames = 2;
-	NewAnimSequence->SequenceLength = 1.0f;
+	NewAnimSequence->NumFrames = animationPoses.Num();
+	NewAnimSequence->SequenceLength = animationPoses.Num();
 	NewAnimSequence->RawAnimationData.AddZeroed(NumBones);
 	NewAnimSequence->AnimationTrackNames.AddUninitialized(NumBones);
 	
@@ -194,15 +199,13 @@ void APoseableActor::saveCurrentPose()
 
 		FRawAnimSequenceTrack& RawTrack = NewAnimSequence->RawAnimationData[BoneIndex];
 
-		// Start with the initial pose
-		RawTrack.PosKeys.Add(initialPoseLocalSpace[BoneIndex].position);
-		RawTrack.RotKeys.Add(initialPoseLocalSpace[BoneIndex].rotation.Quaternion());
-		RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
-
-		// Now add in the current pose
-		RawTrack.PosKeys.Add(LocalAtoms[BoneIndex].GetTranslation());
-		RawTrack.RotKeys.Add(LocalAtoms[BoneIndex].GetRotation());
-		RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
+		// For each keyframe right out the data for this bone
+		for (int32 keyframeIndex = 0; keyframeIndex < animationPoses.Num(); keyframeIndex++)
+		{
+			RawTrack.PosKeys.Add(animationPoses[keyframeIndex][BoneIndex].position);
+			RawTrack.RotKeys.Add(animationPoses[keyframeIndex][BoneIndex].rotation.Quaternion());
+			RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
+		}
 	}
 
 	// Empty this out, not sure if it's needed or not
@@ -393,10 +396,13 @@ void APoseableActor::gripReleased(bool leftHand)
 
 void APoseableActor::triggerPressed(UStaticMeshComponent *selectionSphere, bool leftHand)
 {
+	// If the left hand trigger is pressed, add a keyframe to the animation we will save out
 	if (leftHand)
 	{
+		animationPoses.Add(saveCurrentBoneState(false));
 		return;
 	}
+	// If the right trigger is pressed, check to see if a bone is selected and if so allow that bone to be rotated
 	else
 	{
 		rightTriggerBeingPressed = true;
