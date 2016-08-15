@@ -64,7 +64,8 @@ void APoseableActor::BeginPlay()
 	}
 
 	// Save out the current pose to later reset
-	initialPose = saveCurrentBoneState();
+	initialPose = saveCurrentBoneState(true);
+	initialPoseLocalSpace = saveCurrentBoneState(false);
 }
 
 // Called every frame
@@ -178,7 +179,8 @@ void APoseableActor::saveCurrentPose()
 	const TArray<FTransform>& LocalAtoms = poseableMesh->LocalAtoms;
 
 	// Initialize some data for the animation sequence
-	NewAnimSequence->NumFrames = 1;
+	NewAnimSequence->NumFrames = 2;
+	NewAnimSequence->SequenceLength = 1.0f;
 	NewAnimSequence->RawAnimationData.AddZeroed(NumBones);
 	NewAnimSequence->AnimationTrackNames.AddUninitialized(NumBones);
 	
@@ -192,6 +194,12 @@ void APoseableActor::saveCurrentPose()
 
 		FRawAnimSequenceTrack& RawTrack = NewAnimSequence->RawAnimationData[BoneIndex];
 
+		// Start with the initial pose
+		RawTrack.PosKeys.Add(initialPoseLocalSpace[BoneIndex].position);
+		RawTrack.RotKeys.Add(initialPoseLocalSpace[BoneIndex].rotation.Quaternion());
+		RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
+
+		// Now add in the current pose
 		RawTrack.PosKeys.Add(LocalAtoms[BoneIndex].GetTranslation());
 		RawTrack.RotKeys.Add(LocalAtoms[BoneIndex].GetRotation());
 		RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
@@ -235,7 +243,7 @@ void APoseableActor::saveCurrentPose()
 	FAssetRegistryModule::AssetCreated(NewAsset);
 }
 
-TArray<FBoneInfo> APoseableActor::saveCurrentBoneState()
+TArray<FBoneInfo> APoseableActor::saveCurrentBoneState(bool worldSpace)
 {
 	TArray<FBoneInfo> savedBoneInfo;
 
@@ -243,9 +251,18 @@ TArray<FBoneInfo> APoseableActor::saveCurrentBoneState()
 	{
 		FBoneInfo newBoneInfo;
 		newBoneInfo.name = meshBoneInfo[boneIndex].Name;
-		newBoneInfo.position = poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
-		newBoneInfo.rotation = poseableMesh->GetBoneRotationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
 
+		if (worldSpace)
+		{
+			newBoneInfo.position = poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
+			newBoneInfo.rotation = poseableMesh->GetBoneRotationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
+		}
+		else
+		{
+			newBoneInfo.position = poseableMesh->LocalAtoms[boneIndex].GetTranslation();
+			newBoneInfo.rotation = FRotator(poseableMesh->LocalAtoms[boneIndex].GetRotation());
+		}
+		
 		savedBoneInfo.Add(newBoneInfo);
 	}
 

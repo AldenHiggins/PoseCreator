@@ -59,13 +59,16 @@ public:
 private:
 
 	// Save out an array of bone info for the current state of the skeleton
-	TArray<FBoneInfo> saveCurrentBoneState();
+	TArray<FBoneInfo> saveCurrentBoneState(bool worldSpace);
 
 	// Change the current bone state to that of the inputted array
 	void changeBoneState(TArray<FBoneInfo> newPose);
 
 	// The initial pose of the mannequin
 	TArray<FBoneInfo> initialPose;
+
+	// The initial pose of the mannequin in local space (used to generate an anim sequence)
+	TArray<FBoneInfo> initialPoseLocalSpace;
 	
 	// The mannequin visible in game that the user will modify
 	UPoseableMeshComponent *poseableMesh;
