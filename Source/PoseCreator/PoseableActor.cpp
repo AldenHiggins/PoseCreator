@@ -65,6 +65,12 @@ void APoseableActor::BeginPlay()
 
 	// Save out the current pose to later reset
 	initialPose = saveCurrentBoneState(true);
+
+	FKeyFrame firstKeyFrame;
+	firstKeyFrame.boneTransforms = initialPose;
+	firstKeyFrame.keyFrameTime = 0.0f;
+
+	keyFrames.Add(firstKeyFrame);
 }
 
 // Called every frame
@@ -276,7 +282,7 @@ void APoseableActor::changeBoneState(TArray<FBoneInfo> newPose)
 {
 	for (int boneIndex = 0; boneIndex < newPose.Num(); boneIndex++)
 	{
-		poseableMesh->SetBoneLocationByName(newPose[boneIndex].name, newPose[boneIndex].position, EBoneSpaces::WorldSpace);
+		//poseableMesh->SetBoneLocationByName(newPose[boneIndex].name, newPose[boneIndex].position, EBoneSpaces::WorldSpace);
 		poseableMesh->SetBoneRotationByName(newPose[boneIndex].name, newPose[boneIndex].rotation, EBoneSpaces::WorldSpace);
 	}
 }
@@ -399,7 +405,24 @@ void APoseableActor::triggerPressed(UStaticMeshComponent *selectionSphere, bool 
 	// If the left hand trigger is pressed, add a keyframe to the animation we will save out
 	if (leftHand)
 	{
-		animationPoses.Add(saveCurrentBoneState(false));
+		animationPoses.Add(saveCurrentBoneState(true));
+
+		FKeyFrame newKeyFrame;
+		newKeyFrame.boneTransforms = saveCurrentBoneState(true);
+		newKeyFrame.keyFrameTime = currentAnimationTime;
+
+		for (int keyFrameIndex = 0; keyFrameIndex < keyFrames.Num(); keyFrameIndex++)
+		{
+			if (keyFrames[keyFrameIndex].keyFrameTime == currentAnimationTime)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Overwriting other keyframe instead of adding a new one!!!"));
+
+				keyFrames[keyFrameIndex].boneTransforms = newKeyFrame.boneTransforms;
+				return;
+			}
+		}
+
+		keyFrames.Add(newKeyFrame);
 		return;
 	}
 	// If the right trigger is pressed, check to see if a bone is selected and if so allow that bone to be rotated
@@ -462,5 +485,201 @@ void APoseableActor::rotateBoneAroundAxis(float rotationRadians)
 	{
 		trackpadRotation += rotationRadians;
 	}
+}
+
+void APoseableActor::setCurrentAnimationTime(float newAnimationTime)
+{
+	currentAnimationTime = newAnimationTime;
+
+	if (animationPoses.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No animation poses saved!!!"));
+		return;
+	}
+
+	FKeyFrame previousFrame = keyFrames[0];
+	FKeyFrame nextFrame;
+	nextFrame.keyFrameTime = 10000.0f;
+
+	for (int keyFrameIndex = 0; keyFrameIndex < keyFrames.Num(); keyFrameIndex++)
+	{
+		FKeyFrame *thisKeyFrame = &keyFrames[keyFrameIndex];
+
+		if (thisKeyFrame->keyFrameTime >= currentAnimationTime)
+		{
+			if (nextFrame.keyFrameTime > thisKeyFrame->keyFrameTime)
+			{
+				nextFrame = *thisKeyFrame;
+			}
+		}
+		else if (thisKeyFrame->keyFrameTime < currentAnimationTime)
+		{
+			if (previousFrame.keyFrameTime < thisKeyFrame->keyFrameTime)
+			{
+				previousFrame = *thisKeyFrame;
+			}
+		}
+	}
+
+	if (nextFrame.keyFrameTime == 10000.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Could not find a next frame!"));
+		return;
+	}
+
+	float timeDifference = nextFrame.keyFrameTime - previousFrame.keyFrameTime;
+
+	float timePastFirstFrame = currentAnimationTime - previousFrame.keyFrameTime;
+
+	if (timeDifference == 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Found two frames with the same time!"));
+		return;
+	}
+
+	intepolateTwoPoses(timePastFirstFrame / timeDifference, previousFrame.boneTransforms, nextFrame.boneTransforms);
+}
+
+void APoseableActor::intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose)
+{
+	//UE_LOG(LogTemp, Warning, TEXT("Interpolating two poses"));
+
+	if (firstPose.Num() != secondPose.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("The two poses to interpolate don't have the same number of bones"));
+		return;
+	}
+
+	// The new pose that will be generated
+	TArray<FBoneInfo> interpolatedPose;
+
+	for (int boneIndex = 0; boneIndex < firstPose.Num(); boneIndex++)
+	{
+		FBoneInfo firstPoseBone = firstPose[boneIndex];
+		FBoneInfo secondPoseBone = secondPose[boneIndex];
+
+		FTransform firstBoneTransform(firstPoseBone.rotation, firstPoseBone.position);
+		FTransform secondBoneTransform(secondPoseBone.rotation, secondPoseBone.position);
+
+		ScalarRegister firstBlendWeight(1.0f - percentageOfSecondPose);
+		ScalarRegister secondBlendWeight(percentageOfSecondPose);
+		
+		firstBoneTransform = firstBoneTransform * firstBlendWeight;
+		firstBoneTransform.AccumulateWithShortestRotation(secondBoneTransform, secondBlendWeight);
+
+		FBoneInfo newBonePose;
+		newBonePose.name = firstPoseBone.name;
+		newBonePose.position = firstBoneTransform.GetLocation();
+		newBonePose.rotation = FRotator(firstBoneTransform.GetRotation());
+
+		interpolatedPose.Add(newBonePose);
+	}
+
+	changeBoneState(interpolatedPose);
+
+	//void FAnimationRuntime::BlendTwoPosesTogether(
+	//	const FCompactPose& SourcePose1,
+	//	const FCompactPose& SourcePose2,
+	//	const FBlendedCurve& SourceCurve1,
+	//	const FBlendedCurve& SourceCurve2,
+	//	const float			WeightOfPose1,
+	//	/*out*/ FCompactPose& ResultPose,
+	//	/*out*/ FBlendedCurve& ResultCurve)
+	//{
+	//	BlendPose<ETransformBlendMode::Overwrite>(SourcePose1, ResultPose, WeightOfPose1);
+	//	BlendPose<ETransformBlendMode::Accumulate>(SourcePose2, ResultPose, 1.f - WeightOfPose1);
+
+	//	// Ensure that all of the resulting rotations are normalized
+	//	ResultPose.NormalizeRotations();
+	//	ResultCurve.Blend(SourceCurve1, SourceCurve2, 1.f - WeightOfPose1);
+	//}
+
+
+	//template <int32 TRANSFORM_BLEND_MODE>
+	//FORCEINLINE void BlendPose(const FCompactPose& SourcePose, FCompactPose& ResultPose, const float BlendWeight)
+	//{
+	//	for (FCompactPoseBoneIndex BoneIndex : SourcePose.ForEachBoneIndex())
+	//	{
+	//		BlendTransform<TRANSFORM_BLEND_MODE>(SourcePose[BoneIndex], ResultPose[BoneIndex], BlendWeight);
+	//	}
+	//}
+
+	//template<>
+	//void BlendTransform<ETransformBlendMode::Overwrite>(const FTransform& Source, FTransform& Dest, const float BlendWeight)
+	//{
+	//	const ScalarRegister VBlendWeight(BlendWeight);
+	//	Dest = Source * VBlendWeight;
+	//}
+
+	//template<>
+	//void BlendTransform<ETransformBlendMode::Accumulate>(const FTransform& Source, FTransform& Dest, const float BlendWeight)
+	//{
+	//	const ScalarRegister VBlendWeight(BlendWeight);
+	//	Dest.AccumulateWithShortestRotation(Source, VBlendWeight);
+	//}
+
+
+	///////////////////////////////////
+	///////////////////////////////////
+	// CREATE COMPACT POSE
+	///////////////////////////////////
+	///////////////////////////////////
+
+	//// Populates this pose from the supplied animation and track data
+	//void PopulateFromAnimation(
+	//	const UAnimSequence& Seq,
+	//	const BoneTrackArray& RotationTracks,
+	//	const BoneTrackArray& TranslationTracks,
+	//	const BoneTrackArray& ScaleTracks,
+	//	float Time)
+	//{
+	//	// @todo fixme 
+	//	FTransformArray LocalBones;
+	//	LocalBones = this->Bones;
+
+	//	AnimationFormat_GetAnimationPose(
+	//		LocalBones, //@TODO:@ANIMATION: Nasty hack
+	//		RotationTracks,
+	//		TranslationTracks,
+	//		ScaleTracks,
+	//		Seq,
+	//		Time);
+	//	this->Bones = LocalBones;
+	//}
+
+	
+
+
+	//void AnimationFormat_GetAnimationPose(
+	//	FTransformArray& Atoms,
+	//	const BoneTrackArray& RotationPairs,
+	//	const BoneTrackArray& TranslationPairs,
+	//	const BoneTrackArray& ScalePairs,
+	//	const UAnimSequence& Seq,
+	//	float Time)
+	//{
+	//	// decompress the translation component using the proper method
+	//	checkSlow(Seq.TranslationCodec != NULL);
+	//	if (TranslationPairs.Num() > 0)
+	//	{
+	//		((AnimEncoding*)Seq.TranslationCodec)->GetPoseTranslations(Atoms, TranslationPairs, Seq, Time);
+	//	}
+
+	//	// decompress the rotation component using the proper method
+	//	checkSlow(Seq.RotationCodec != NULL);
+	//	((AnimEncoding*)Seq.RotationCodec)->GetPoseRotations(Atoms, RotationPairs, Seq, Time);
+
+	//	checkSlow(Seq.ScaleCodec != NULL);
+	//	// we allow scale key to be empty
+	//	if (Seq.CompressedScaleOffsets.IsValid())
+	//	{
+	//		((AnimEncoding*)Seq.ScaleCodec)->GetPoseScales(Atoms, ScalePairs, Seq, Time);
+	//	}
+	//}
+
+	
+
+
+
 }
 
