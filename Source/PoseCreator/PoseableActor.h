@@ -64,7 +64,7 @@ private:
 	bool findPreviousAndNextKeyframes(float timeToCheck, FKeyFrame &previousKeyFrame, FKeyFrame &nextKeyFrame);
 
 	// Interpolate between two poses
-	void intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose);
+	TArray<FBoneInfo> intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose);
 
 	// The current time of the animation playback
 	float currentAnimationTime;
