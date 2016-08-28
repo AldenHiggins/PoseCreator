@@ -75,9 +75,6 @@ private:
 	// Change the current bone state to that of the inputted array
 	void changeBoneState(TArray<FBoneInfo> newPose);
 
-	// The initial pose of the mannequin
-	TArray<FBoneInfo> initialPose;
-
 	// The array of saved poses that will be used to generate an animation
 	TArray<TArray<FBoneInfo>> animationPoses;
 

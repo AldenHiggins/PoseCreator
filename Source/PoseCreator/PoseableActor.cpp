@@ -3,22 +3,12 @@
 #include "PoseCreator.h"
 #include "PoseableActor.h"
 #include "Kismet/KismetMathLibrary.h"
-
-
 #include "Animation/AnimSequence.h"
-
-
 #include "AssetRegistryModule.h"
-
-//#include "Factories/AnimSequenceFactory.h"
-
-//#include "AnimationEditorUtils.h"
 #include "../AssetTools/Public/AssetToolsModule.h"
 #include "ModuleManager.h"
-//#include "../AssetTools/Private/AssetTools.h"
 
-
-
+// Some hard coded depth values to color the highlights of elements differently
 #define BONE_REFERENCE_DEPTH 253
 #define SELECTION_DEPTH 252
 #define BONE_SELECTED_DEPTH 254
@@ -40,11 +30,15 @@ void APoseableActor::BeginPlay()
 	Super::BeginPlay();
 
 	// Get the skeletal mesh for the poseable actor
-	TArray<UPoseableMeshComponent*>  poseableMeshes;
+	TArray<UPoseableMeshComponent*> poseableMeshes;
 	GetComponents(poseableMeshes);
 	if (poseableMeshes.Num() > 0)
 	{
 		poseableMesh = poseableMeshes[0];
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("No poseable mesh component found on poseable actor, please add one!"));
 	}
 
 	// Create reference points for each of the bones
@@ -63,13 +57,10 @@ void APoseableActor::BeginPlay()
 		boneReferences.Add(newBoneReference);
 	}
 
-	// Save out the current pose to later reset
-	initialPose = saveCurrentBoneState(true);
-
+	// Save out the first pose as the initial keyframe
 	FKeyFrame firstKeyFrame;
-	firstKeyFrame.boneTransforms = initialPose;
+	firstKeyFrame.boneTransforms = saveCurrentBoneState(true);
 	firstKeyFrame.keyFrameTime = 0.0f;
-
 	keyFrames.Add(firstKeyFrame);
 }
 
@@ -88,6 +79,7 @@ void APoseableActor::Tick( float DeltaTime )
 	// Moving and rotating the entire skeletal mesh
 	if (rightGripBeingPressed)
 	{
+		// Rotate the whole mesh
 		if (leftGripBeingPressed)
 		{
 			FVector fromLeftToRightHand = rightHandSelectionSphere->GetComponentLocation() - LeftHandSelectionSphere->GetComponentLocation();
@@ -98,17 +90,14 @@ void APoseableActor::Tick( float DeltaTime )
 			float angleDifference = FMath::Acos(dotProduct);
 
 			FVector rotationAxis = FVector::CrossProduct(initialGripVectorBetweenControllers, fromLeftToRightHand);
-
 			FRotator newRotator = FRotator(FQuat(rotationAxis, angleDifference));
-
 			FRotator finalRotation = UKismetMathLibrary::ComposeRotators(initialActorRotation, newRotator);
 
 			poseableMesh->SetBoneRotationByName("root", finalRotation, EBoneSpaces::WorldSpace);
-
 		}
+		// Move the whole mesh based on the movement of the right controller
 		else
 		{
-			// If the grip button is being held down move the overlapped bone to the location of the controller
 			FVector distanceVector = rightHandSelectionSphere->GetComponentLocation() - rightHandInitialGripPosition;
 
 			rightHandInitialGripPosition = rightHandSelectionSphere->GetComponentLocation();
@@ -127,17 +116,13 @@ void APoseableActor::Tick( float DeltaTime )
 		vectorToRightHand.Normalize();
 
 		float dotProduct = FVector::DotProduct(startingLeftToRightVector, vectorToRightHand);
-
 		float angleDifference = FMath::Acos(dotProduct);
 
 		FVector rotationAxis = FVector::CrossProduct(startingLeftToRightVector, vectorToRightHand);
-
 		FRotator newRotation = FRotator(FQuat(rotationAxis, angleDifference));
-
 		FRotator finalRotation = UKismetMathLibrary::ComposeRotators(startingBoneRotation, newRotation);
-
+		// Add in the trackpad rotation to get that final axis
 		FRotator finalTrackpadRotation = FRotator(FQuat(finalRotation.Vector(), trackpadRotation));
-
 		finalRotation = UKismetMathLibrary::ComposeRotators(finalRotation, finalTrackpadRotation);
 
 		poseableMesh->SetBoneRotationByName(meshBoneInfo[overlappedBoneRighttHandInfo.ParentIndex].Name, finalRotation, EBoneSpaces::WorldSpace);
@@ -146,146 +131,12 @@ void APoseableActor::Tick( float DeltaTime )
 
 void APoseableActor::resetSkeleton()
 {
-	//saveCurrentPose();
-	//changeBoneState(initialPose);
+	// TODO: Figure out if I just want to take the first keyframe here or clear all of them out??
 }
 
-void APoseableActor::saveCurrentPose()
-{
-	if (animationPoses.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("No animation poses recorded yet, can't save out an animation!!!"));
-		return;
-	}
-
-	// Generate an animation asset
-	FString Name;
-	FString PackageName;
-	FAssetToolsModule& AssetToolsModule = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools");
-	AssetToolsModule.Get().CreateUniqueAssetName(poseableMesh->SkeletalMesh->Skeleton->GetOutermost()->GetName(), TEXT("_GeneratedAnimation"), PackageName, Name);
-	UAnimationAsset* NewAsset = Cast<UAnimationAsset>(AssetToolsModule.Get().CreateAsset(Name, FPackageName::GetLongPackagePath(PackageName),
-		UAnimSequence::StaticClass(), NULL));
-
-	if (!NewAsset)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Animation could not be created!!"));
-		return;
-	}
-
-	// Assign a skeletal mesh to the animation
-	NewAsset->SetSkeleton(poseableMesh->SkeletalMesh->Skeleton);
-	NewAsset->MarkPackageDirty();
-
-	UAnimSequence* NewAnimSequence = Cast<UAnimSequence>(NewAsset);
-
-	if (!NewAnimSequence)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Animation could not be converted to an anim sequence!!"));
-		return;
-	}
-
-	// Get some data we'll need to generate the animation sequence
-	const FReferenceSkeleton& RefSkeleton = poseableMesh->SkeletalMesh->RefSkeleton;
-	int32 NumBones = poseableMesh->SkeletalMesh->RefSkeleton.GetNum();
-	const TArray<FTransform>& LocalAtoms = poseableMesh->LocalAtoms;
-
-	// Initialize some data for the animation sequence
-	NewAnimSequence->NumFrames = animationPoses.Num();
-	NewAnimSequence->SequenceLength = animationPoses.Num();
-	NewAnimSequence->RawAnimationData.AddZeroed(NumBones);
-	NewAnimSequence->AnimationTrackNames.AddUninitialized(NumBones);
-	
-	// Sanity check
-	check(LocalAtoms.Num() == NumBones);
-
-	// Write out the raw animation data
-	for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-	{
-		NewAnimSequence->AnimationTrackNames[BoneIndex] = RefSkeleton.GetBoneName(BoneIndex);
-
-		FRawAnimSequenceTrack& RawTrack = NewAnimSequence->RawAnimationData[BoneIndex];
-
-		// For each keyframe right out the data for this bone
-		for (int32 keyframeIndex = 0; keyframeIndex < animationPoses.Num(); keyframeIndex++)
-		{
-			RawTrack.PosKeys.Add(animationPoses[keyframeIndex][BoneIndex].position);
-			RawTrack.RotKeys.Add(animationPoses[keyframeIndex][BoneIndex].rotation.Quaternion());
-			RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
-		}
-	}
-
-	// Empty this out, not sure if it's needed or not
-	NewAnimSequence->TrackToSkeletonMapTable.Empty();
-	NewAnimSequence->TrackToSkeletonMapTable.AddUninitialized(NumBones);
-
-	// Get rid of all of the animation track data, not sure if this is required
-	const int32 NumTracks = NewAnimSequence->AnimationTrackNames.Num();
-	for (int32 I = NumTracks - 1; I >= 0; --I)
-	{
-		int32 BoneTreeIndex = RefSkeleton.FindBoneIndex(NewAnimSequence->AnimationTrackNames[I]);
-		if (BoneTreeIndex == INDEX_NONE)
-		{
-			if (NewAnimSequence->RawAnimationData.IsValidIndex(I))
-			{
-				NewAnimSequence->RawAnimationData.RemoveAt(I);
-				NewAnimSequence->AnimationTrackNames.RemoveAt(I);
-				NewAnimSequence->TrackToSkeletonMapTable.RemoveAt(I);
-
-				check(NewAnimSequence->RawAnimationData.Num() == NewAnimSequence->AnimationTrackNames.Num()
-					&& NewAnimSequence->AnimationTrackNames.Num() == NewAnimSequence->TrackToSkeletonMapTable.Num());
-			}
-		}
-		else
-		{
-			NewAnimSequence->TrackToSkeletonMapTable[I].BoneTreeIndex = BoneTreeIndex;
-		}
-	}
-
-	// should recreate track map
-	NewAnimSequence->PostProcessSequence();
-
-	// Temporary includes to prevent the compiler from getting rid of the reference animation sequence
-	referenceAnimationSequence->PostProcessSequence();
-	referenceAnimationSequence->MarkPackageDirty();
-
-	// Flag UE4 that the animation has been created so that it will be recognized/able to be saved
-	FAssetRegistryModule::AssetCreated(NewAsset);
-}
-
-TArray<FBoneInfo> APoseableActor::saveCurrentBoneState(bool worldSpace)
-{
-	TArray<FBoneInfo> savedBoneInfo;
-
-	for (int boneIndex = 0; boneIndex < meshBoneInfo.Num(); boneIndex++)
-	{
-		FBoneInfo newBoneInfo;
-		newBoneInfo.name = meshBoneInfo[boneIndex].Name;
-
-		if (worldSpace)
-		{
-			newBoneInfo.position = poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
-			newBoneInfo.rotation = poseableMesh->GetBoneRotationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
-		}
-		else
-		{
-			newBoneInfo.position = poseableMesh->LocalAtoms[boneIndex].GetTranslation();
-			newBoneInfo.rotation = FRotator(poseableMesh->LocalAtoms[boneIndex].GetRotation());
-		}
-		
-		savedBoneInfo.Add(newBoneInfo);
-	}
-
-	return savedBoneInfo;
-}
-
-void APoseableActor::changeBoneState(TArray<FBoneInfo> newPose)
-{
-	for (int boneIndex = 0; boneIndex < newPose.Num(); boneIndex++)
-	{
-		//poseableMesh->SetBoneLocationByName(newPose[boneIndex].name, newPose[boneIndex].position, EBoneSpaces::WorldSpace);
-		poseableMesh->SetBoneRotationByName(newPose[boneIndex].name, newPose[boneIndex].rotation, EBoneSpaces::WorldSpace);
-	}
-}
+///////////////////////////////////////////////////////////
+//////////////////       CONTROLS     /////////////////////
+///////////////////////////////////////////////////////////
 
 void APoseableActor::overlapBoneReference(UStaticMeshComponent *overlappedBoneInput, UStaticMeshComponent *selectionSphereInput, bool leftHand)
 {
@@ -294,46 +145,22 @@ void APoseableActor::overlapBoneReference(UStaticMeshComponent *overlappedBoneIn
 		return;
 	}
 
-	// Handle the left hand overlapping a bone reference
-	if (leftHand)
+	boneReferenceOverlappingRight = false;
+	overlappedBoneRightHand = overlappedBoneInput;
+	selectionSphereRightHand = selectionSphereInput;
+
+	overlappedBoneRightHand->SetCustomDepthStencilValue(BONE_SELECTED_DEPTH);
+	selectionSphereRightHand->SetCustomDepthStencilValue(BONE_SELECTED_DEPTH);
+
+	// Search for the name of the overlapped bone
+	for (int boneIndex = 0; boneIndex < boneReferences.Num(); boneIndex++)
 	{
-		boneReferenceOverlappingLeft = false;
-		overlappedBoneLeftHand = overlappedBoneInput;
-		selectionSphereLeftHand = selectionSphereInput;
-
-		overlappedBoneLeftHand->SetCustomDepthStencilValue(BONE_SELECTED_DEPTH);
-		selectionSphereLeftHand->SetCustomDepthStencilValue(BONE_SELECTED_DEPTH);
-
-		// Search for the name of the overlapped bone
-		for (int boneIndex = 0; boneIndex < boneReferences.Num(); boneIndex++)
+		if (boneReferences[boneIndex] == overlappedBoneRightHand)
 		{
-			if (boneReferences[boneIndex] == overlappedBoneLeftHand)
-			{
-				overlappedBoneNameLeftHand = meshBoneInfo[boneIndex].Name;
-				boneReferenceOverlappingLeft = true;
-			}
-		}
-	}
-	// Handle the right hand overlapping a bone reference...should refactor this out
-	else
-	{
-		boneReferenceOverlappingRight = false;
-		overlappedBoneRightHand = overlappedBoneInput;
-		selectionSphereRightHand = selectionSphereInput;
-
-		overlappedBoneRightHand->SetCustomDepthStencilValue(BONE_SELECTED_DEPTH);
-		selectionSphereRightHand->SetCustomDepthStencilValue(BONE_SELECTED_DEPTH);
-
-		// Search for the name of the overlapped bone
-		for (int boneIndex = 0; boneIndex < boneReferences.Num(); boneIndex++)
-		{
-			if (boneReferences[boneIndex] == overlappedBoneRightHand)
-			{
-				overlappedBoneNameRightHand = meshBoneInfo[boneIndex].Name;
-				overlappedBoneRighttHandInfo = meshBoneInfo[boneIndex];
-				overlappedBoneParentName = meshBoneInfo[meshBoneInfo[boneIndex].ParentIndex].Name;
-				boneReferenceOverlappingRight = true;
-			}
+			overlappedBoneNameRightHand = meshBoneInfo[boneIndex].Name;
+			overlappedBoneRighttHandInfo = meshBoneInfo[boneIndex];
+			overlappedBoneParentName = meshBoneInfo[meshBoneInfo[boneIndex].ParentIndex].Name;
+			boneReferenceOverlappingRight = true;
 		}
 	}
 }
@@ -345,15 +172,8 @@ void APoseableActor::endOverlapBoneReference(UStaticMeshComponent *overlappedBon
 		return;
 	}
 
-	if (leftHand)
-	{
-		boneReferenceOverlappingLeft = false;
-	}
-	else
-	{
-		boneReferenceOverlappingRight = false;
-	}
-	
+	boneReferenceOverlappingRight = false;
+
 	overlappedBoneInput->SetCustomDepthStencilValue(BONE_REFERENCE_DEPTH);
 	selectionSphereInput->SetCustomDepthStencilValue(SELECTION_DEPTH);
 }
@@ -363,13 +183,11 @@ void APoseableActor::gripPressed(UStaticMeshComponent *selectionSphere, bool lef
 	if (leftHand)
 	{
 		leftGripBeingPressed = true;
-
 		LeftHandSelectionSphere = selectionSphere;
 	}
 	else
 	{
 		rightGripBeingPressed = true;
-
 		rightHandSelectionSphere = selectionSphere;
 		rightHandInitialGripPosition = selectionSphere->GetComponentLocation();
 	}
@@ -461,17 +279,14 @@ void APoseableActor::triggerReleased(bool leftHand)
 		{
 			selectionSphereRightHand->SetCustomDepthStencilValue(SELECTION_DEPTH);
 		}
-
 		if (selectionSphereLeftHand != nullptr)
 		{
 			selectionSphereLeftHand->SetCustomDepthStencilValue(SELECTION_DEPTH);
 		}
-
 		if (overlappedBoneRightHand != nullptr)
 		{
 			overlappedBoneRightHand->SetCustomDepthStencilValue(BONE_REFERENCE_DEPTH);
 		}
-
 		if (overlappedBoneLeftHand != nullptr)
 		{
 			overlappedBoneLeftHand->SetCustomDepthStencilValue(BONE_REFERENCE_DEPTH);
@@ -484,6 +299,150 @@ void APoseableActor::rotateBoneAroundAxis(float rotationRadians)
 	if (rightTriggerBeingPressed && boneReferenceOverlappingRight)
 	{
 		trackpadRotation += rotationRadians;
+	}
+}
+
+///////////////////////////////////////////////////////////
+//////////////////   SAVING ANIMATION  ////////////////////
+///////////////////////////////////////////////////////////
+
+void APoseableActor::saveCurrentPose()
+{
+	if (animationPoses.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No animation poses recorded yet, can't save out an animation!!!"));
+		return;
+	}
+
+	// Generate an animation asset
+	FString Name;
+	FString PackageName;
+	FAssetToolsModule& AssetToolsModule = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools");
+	AssetToolsModule.Get().CreateUniqueAssetName(poseableMesh->SkeletalMesh->Skeleton->GetOutermost()->GetName(), TEXT("_GeneratedAnimation"), PackageName, Name);
+	UAnimationAsset* NewAsset = Cast<UAnimationAsset>(AssetToolsModule.Get().CreateAsset(Name, FPackageName::GetLongPackagePath(PackageName),
+		UAnimSequence::StaticClass(), NULL));
+
+	if (!NewAsset)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Animation could not be created!!"));
+		return;
+	}
+
+	// Assign a skeletal mesh to the animation
+	NewAsset->SetSkeleton(poseableMesh->SkeletalMesh->Skeleton);
+	NewAsset->MarkPackageDirty();
+
+	UAnimSequence* NewAnimSequence = Cast<UAnimSequence>(NewAsset);
+
+	if (!NewAnimSequence)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Animation could not be converted to an anim sequence!!"));
+		return;
+	}
+
+	// Get some data we'll need to generate the animation sequence
+	const FReferenceSkeleton& RefSkeleton = poseableMesh->SkeletalMesh->RefSkeleton;
+	int32 NumBones = poseableMesh->SkeletalMesh->RefSkeleton.GetNum();
+	const TArray<FTransform>& LocalAtoms = poseableMesh->LocalAtoms;
+
+	// Initialize some data for the animation sequence
+	NewAnimSequence->NumFrames = animationPoses.Num();
+	NewAnimSequence->SequenceLength = animationPoses.Num();
+	NewAnimSequence->RawAnimationData.AddZeroed(NumBones);
+	NewAnimSequence->AnimationTrackNames.AddUninitialized(NumBones);
+
+	// Sanity check
+	check(LocalAtoms.Num() == NumBones);
+
+	// Write out the raw animation data
+	for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+	{
+		NewAnimSequence->AnimationTrackNames[BoneIndex] = RefSkeleton.GetBoneName(BoneIndex);
+
+		FRawAnimSequenceTrack& RawTrack = NewAnimSequence->RawAnimationData[BoneIndex];
+
+		// For each keyframe right out the data for this bone
+		for (int32 keyframeIndex = 0; keyframeIndex < animationPoses.Num(); keyframeIndex++)
+		{
+			RawTrack.PosKeys.Add(animationPoses[keyframeIndex][BoneIndex].position);
+			RawTrack.RotKeys.Add(animationPoses[keyframeIndex][BoneIndex].rotation.Quaternion());
+			RawTrack.ScaleKeys.Add(LocalAtoms[BoneIndex].GetScale3D());
+		}
+	}
+
+	// Empty this out, not sure if it's needed or not
+	NewAnimSequence->TrackToSkeletonMapTable.Empty();
+	NewAnimSequence->TrackToSkeletonMapTable.AddUninitialized(NumBones);
+
+	// Get rid of all of the animation track data, not sure if this is required
+	const int32 NumTracks = NewAnimSequence->AnimationTrackNames.Num();
+	for (int32 I = NumTracks - 1; I >= 0; --I)
+	{
+		int32 BoneTreeIndex = RefSkeleton.FindBoneIndex(NewAnimSequence->AnimationTrackNames[I]);
+		if (BoneTreeIndex == INDEX_NONE)
+		{
+			if (NewAnimSequence->RawAnimationData.IsValidIndex(I))
+			{
+				NewAnimSequence->RawAnimationData.RemoveAt(I);
+				NewAnimSequence->AnimationTrackNames.RemoveAt(I);
+				NewAnimSequence->TrackToSkeletonMapTable.RemoveAt(I);
+
+				check(NewAnimSequence->RawAnimationData.Num() == NewAnimSequence->AnimationTrackNames.Num()
+					&& NewAnimSequence->AnimationTrackNames.Num() == NewAnimSequence->TrackToSkeletonMapTable.Num());
+			}
+		}
+		else
+		{
+			NewAnimSequence->TrackToSkeletonMapTable[I].BoneTreeIndex = BoneTreeIndex;
+		}
+	}
+
+	// Should recreate track map
+	NewAnimSequence->PostProcessSequence();
+
+	// Temporary includes to prevent the compiler from getting rid of the reference animation sequence
+	referenceAnimationSequence->PostProcessSequence();
+	referenceAnimationSequence->MarkPackageDirty();
+
+	// Flag UE4 that the animation has been created so that it will be recognized/able to be saved
+	FAssetRegistryModule::AssetCreated(NewAsset);
+}
+
+TArray<FBoneInfo> APoseableActor::saveCurrentBoneState(bool worldSpace)
+{
+	TArray<FBoneInfo> savedBoneInfo;
+
+	for (int boneIndex = 0; boneIndex < meshBoneInfo.Num(); boneIndex++)
+	{
+		FBoneInfo newBoneInfo;
+		newBoneInfo.name = meshBoneInfo[boneIndex].Name;
+
+		if (worldSpace)
+		{
+			newBoneInfo.position = poseableMesh->GetBoneLocationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
+			newBoneInfo.rotation = poseableMesh->GetBoneRotationByName(meshBoneInfo[boneIndex].Name, EBoneSpaces::WorldSpace);
+		}
+		else
+		{
+			newBoneInfo.position = poseableMesh->LocalAtoms[boneIndex].GetTranslation();
+			newBoneInfo.rotation = FRotator(poseableMesh->LocalAtoms[boneIndex].GetRotation());
+		}
+
+		savedBoneInfo.Add(newBoneInfo);
+	}
+
+	return savedBoneInfo;
+}
+
+///////////////////////////////////////////////////////////
+////////////////// ANIMATION UTILITIES ////////////////////
+///////////////////////////////////////////////////////////
+
+void APoseableActor::changeBoneState(TArray<FBoneInfo> newPose)
+{
+	for (int boneIndex = 0; boneIndex < newPose.Num(); boneIndex++)
+	{
+		poseableMesh->SetBoneRotationByName(newPose[boneIndex].name, newPose[boneIndex].rotation, EBoneSpaces::WorldSpace);
 	}
 }
 
@@ -522,6 +481,53 @@ void APoseableActor::setCurrentAnimationTime(float newAnimationTime)
 	// Get the interpolated pose between the two keyframes and change the bone state to reflect that
 	TArray<FBoneInfo> interpolatedPose = intepolateTwoPoses(timePastFirstFrame / timeDifference, previousFrame.boneTransforms, nextFrame.boneTransforms);
 	changeBoneState(interpolatedPose);
+}
+
+
+TArray<FBoneInfo> APoseableActor::intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose)
+{
+	if (firstPose.Num() != secondPose.Num())
+	{
+		UE_LOG(LogTemp, Error, TEXT("The two poses to interpolate don't have the same number of bones"));
+		return firstPose;
+	}
+
+	// Check to see if any interpolation is needed
+	if (percentageOfSecondPose == 0.0f)
+	{
+		return firstPose;
+	}
+	else if (percentageOfSecondPose == 1.0f)
+	{
+		return secondPose;
+	}
+
+	// The new pose that will be generated
+	TArray<FBoneInfo> interpolatedPose;
+
+	for (int boneIndex = 0; boneIndex < firstPose.Num(); boneIndex++)
+	{
+		FBoneInfo firstPoseBone = firstPose[boneIndex];
+		FBoneInfo secondPoseBone = secondPose[boneIndex];
+
+		FTransform firstBoneTransform(firstPoseBone.rotation, firstPoseBone.position);
+		FTransform secondBoneTransform(secondPoseBone.rotation, secondPoseBone.position);
+
+		ScalarRegister firstBlendWeight(1.0f - percentageOfSecondPose);
+		ScalarRegister secondBlendWeight(percentageOfSecondPose);
+
+		firstBoneTransform = firstBoneTransform * firstBlendWeight;
+		firstBoneTransform.AccumulateWithShortestRotation(secondBoneTransform, secondBlendWeight);
+
+		FBoneInfo newBonePose;
+		newBonePose.name = firstPoseBone.name;
+		newBonePose.position = firstBoneTransform.GetLocation();
+		newBonePose.rotation = FRotator(firstBoneTransform.GetRotation());
+
+		interpolatedPose.Add(newBonePose);
+	}
+
+	return interpolatedPose;
 }
 
 bool APoseableActor::findPreviousAndNextKeyframes(float timeToCheck, FKeyFrame &previousKeyFrame, FKeyFrame &nextKeyFrame)
@@ -568,50 +574,3 @@ bool APoseableActor::findPreviousAndNextKeyframes(float timeToCheck, FKeyFrame &
 		return true;
 	}
 }
-
-TArray<FBoneInfo> APoseableActor::intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose)
-{
-	if (firstPose.Num() != secondPose.Num())
-	{
-		UE_LOG(LogTemp, Error, TEXT("The two poses to interpolate don't have the same number of bones"));
-		return firstPose;
-	}
-
-	// Check to see if any interpolation is needed
-	if (percentageOfSecondPose == 0.0f)
-	{
-		return firstPose;
-	}
-	else if (percentageOfSecondPose == 1.0f)
-	{
-		return secondPose;
-	}
-
-	// The new pose that will be generated
-	TArray<FBoneInfo> interpolatedPose;
-
-	for (int boneIndex = 0; boneIndex < firstPose.Num(); boneIndex++)
-	{
-		FBoneInfo firstPoseBone = firstPose[boneIndex];
-		FBoneInfo secondPoseBone = secondPose[boneIndex];
-
-		FTransform firstBoneTransform(firstPoseBone.rotation, firstPoseBone.position);
-		FTransform secondBoneTransform(secondPoseBone.rotation, secondPoseBone.position);
-
-		ScalarRegister firstBlendWeight(1.0f - percentageOfSecondPose);
-		ScalarRegister secondBlendWeight(percentageOfSecondPose);
-		
-		firstBoneTransform = firstBoneTransform * firstBlendWeight;
-		firstBoneTransform.AccumulateWithShortestRotation(secondBoneTransform, secondBlendWeight);
-
-		FBoneInfo newBonePose;
-		newBonePose.name = firstPoseBone.name;
-		newBonePose.position = firstBoneTransform.GetLocation();
-		newBonePose.rotation = FRotator(firstBoneTransform.GetRotation());
-
-		interpolatedPose.Add(newBonePose);
-	}
-
-	return interpolatedPose;
-}
-
