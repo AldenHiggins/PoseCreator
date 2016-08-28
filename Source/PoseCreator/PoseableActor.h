@@ -60,6 +60,9 @@ public:
 	virtual void Tick( float DeltaSeconds ) override;
 
 private:
+	// Find the two keyframes that correspond to the inputted time
+	bool findPreviousAndNextKeyframes(float timeToCheck, FKeyFrame &previousKeyFrame, FKeyFrame &nextKeyFrame);
+
 	// Interpolate between two poses
 	void intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose);
 

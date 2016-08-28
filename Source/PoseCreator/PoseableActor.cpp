@@ -146,7 +146,7 @@ void APoseableActor::Tick( float DeltaTime )
 
 void APoseableActor::resetSkeleton()
 {
-	saveCurrentPose();
+	//saveCurrentPose();
 	//changeBoneState(initialPose);
 }
 
@@ -497,6 +497,39 @@ void APoseableActor::setCurrentAnimationTime(float newAnimationTime)
 		return;
 	}
 
+	// Find the two frames to interpolate between for this time in the animation
+	FKeyFrame previousFrame;
+	FKeyFrame nextFrame;
+	bool nextFrameFound = findPreviousAndNextKeyframes(currentAnimationTime, previousFrame, nextFrame);
+
+	// If the next frame can't be found just play the first frame
+	if (!nextFrameFound)
+	{
+		changeBoneState(previousFrame.boneTransforms);
+		return;
+	}
+
+	// Find out how much we need to interpolate these guys
+	float timeDifference = nextFrame.keyFrameTime - previousFrame.keyFrameTime;
+	float timePastFirstFrame = currentAnimationTime - previousFrame.keyFrameTime;
+
+	if (timeDifference == 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Found two frames with the same time!"));
+		return;
+	}
+
+	intepolateTwoPoses(timePastFirstFrame / timeDifference, previousFrame.boneTransforms, nextFrame.boneTransforms);
+}
+
+bool APoseableActor::findPreviousAndNextKeyframes(float timeToCheck, FKeyFrame &previousKeyFrame, FKeyFrame &nextKeyFrame)
+{
+	if (keyFrames.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No keyframes saved!!!"));
+		return false;
+	}
+
 	FKeyFrame previousFrame = keyFrames[0];
 	FKeyFrame nextFrame;
 	nextFrame.keyFrameTime = 10000.0f;
@@ -521,23 +554,17 @@ void APoseableActor::setCurrentAnimationTime(float newAnimationTime)
 		}
 	}
 
+	previousKeyFrame = previousFrame;
+	nextKeyFrame = nextFrame;
+
 	if (nextFrame.keyFrameTime == 10000.0f)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Could not find a next frame!"));
-		return;
+		return false;
 	}
-
-	float timeDifference = nextFrame.keyFrameTime - previousFrame.keyFrameTime;
-
-	float timePastFirstFrame = currentAnimationTime - previousFrame.keyFrameTime;
-
-	if (timeDifference == 0.0f)
+	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Found two frames with the same time!"));
-		return;
+		return true;
 	}
-
-	intepolateTwoPoses(timePastFirstFrame / timeDifference, previousFrame.boneTransforms, nextFrame.boneTransforms);
 }
 
 void APoseableActor::intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose)
