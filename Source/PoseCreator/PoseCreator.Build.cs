@@ -4,8 +4,8 @@ using UnrealBuildTool;
 
 public class PoseCreator : ModuleRules
 {
-	public PoseCreator(TargetInfo Target)
-	{
+	public PoseCreator(ReadOnlyTargetRules Target) : base(Target)
+    {
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
 
         //PrivateDependencyModuleNames.AddRange(new string[] { "AssetTools" });
