@@ -15,3 +15,14 @@ struct FBoneInfo
 	UPROPERTY()
 	FName name;
 };
+
+USTRUCT()
+struct FKeyFrame
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<FBoneInfo> boneTransforms;
+	UPROPERTY()
+	float keyFrameTime;
+};

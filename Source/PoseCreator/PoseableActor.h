@@ -47,6 +47,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Posing")
 	void rotateBoneAroundAxis(float rotationRadians);
 
+	UFUNCTION(BlueprintCallable, Category = "Posing")
+	void setCurrentAnimationTime(float newAnimationTime);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posing")
+	UAnimSequence *referenceAnimationSequence;
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
@@ -54,15 +60,26 @@ public:
 	virtual void Tick( float DeltaSeconds ) override;
 
 private:
+	// Find the two keyframes that correspond to the inputted time
+	bool findPreviousAndNextKeyframes(float timeToCheck, FKeyFrame &previousKeyFrame, FKeyFrame &nextKeyFrame);
+
+	// Interpolate between two poses
+	TArray<FBoneInfo> intepolateTwoPoses(float percentageOfSecondPose, TArray<FBoneInfo> firstPose, TArray<FBoneInfo> secondPose);
+
+	// The current time of the animation playback
+	float currentAnimationTime;
 
 	// Save out an array of bone info for the current state of the skeleton
-	TArray<FBoneInfo> saveCurrentBoneState();
+	TArray<FBoneInfo> saveCurrentBoneState(bool worldSpace);
 
 	// Change the current bone state to that of the inputted array
 	void changeBoneState(TArray<FBoneInfo> newPose);
 
-	// The initial pose of the mannequin
-	TArray<FBoneInfo> initialPose;
+	// The array of saved poses that will be used to generate an animation
+	TArray<TArray<FBoneInfo>> animationPoses;
+
+	// The array of keyframes for this animation
+	TArray<FKeyFrame> keyFrames;
 	
 	// The mannequin visible in game that the user will modify
 	UPoseableMeshComponent *poseableMesh;
